@@ -26,9 +26,18 @@ LEVEL_NAME = {
 }
 
 FEATURE_WHITE_LIST = {
-                        'Life-Cycle-Logger':['OnDiscoveryFailed','OnSystemLoginFailed','OnAuthenticationFailed'],
-                        'service-discovery':['evaluateServiceDiscoveryResult','handleSuccessfulDiscoveryResult', 'handleFailedDiscoveryResult'],
-                        'Single-Sign-On-Logger':['authorizeNext']
+                        'Life-Cycle-Logger':{
+                            'OnDiscoveryFailed':False,
+                            'OnSystemLoginFailed':False,
+                            'OnAuthenticationFailed':False
+                        },
+                        'service-discovery':{
+                            'evaluateServiceDiscoveryResult':True,
+                            'handleFailedDiscoveryResult':False,
+                        },
+                            'Single-Sign-On-Logger':{
+                            'authorizeNext': False
+                        }
                        }
 
 '''
@@ -56,9 +65,13 @@ class file():
 
     '''
     set white list, and the dict needs to follow the format as below:
-    
+    The True/False for funcName means that whether we concern about detailed logs
     {
-        'module_name': [funcName1, funcName2,...]
+        'module_name': {
+            'funcName1': True,
+            'funcName2': False,
+            ......
+        }
         .....
     }
     '''
@@ -104,9 +117,8 @@ class file():
         user maybe signout and send prt,
         so the last time after signout, we couldn't get valuable infos
         '''
-        if len(self.featureStoreList) == 0:
-            loggerHandler.info("self.featureStoreList is empty")
-            self.featureStoreList = self.featureStoreListBak
+        if len(self.featureStoreList) <= 2:
+            self.featureStoreList.extend(self.featureStoreListBak)
 
         loggerHandler.info(len(self.featureStoreList))
         for storeMeta in self.featureStoreList:
@@ -129,7 +141,8 @@ class file():
         '''
         whether the module need to store as one feature
         '''
-        if not self.existInWhiteList(module, func):
+        inWhiteList, printedInfos = self.existInWhiteList(module, func)
+        if not inWhiteList:
             if not self.existInResetDict(module, func, infos):
                 return [], False
             else:
@@ -137,8 +150,13 @@ class file():
 
         if self.existInResetDict(module, func, infos):
             return [], True
+
+        if printedInfos:
+            funcAddInfos = ' - '.join([func, infos])
+            return [time, level, module, funcAddInfos], False
         else:
-            return [time, level, module, func, infos], False
+            return [time, level, module, func], False
+
         '''
         if len(level) > 0 and  LEVEL_NAME[level] >= returnLevel \
                 and len(module) > 0 and len(infos) > 0:
@@ -182,14 +200,15 @@ class file():
                 False, ignore the module and func
     '''
     def existInWhiteList(self, module, func):
-        funcList = self.whiteListDict.get(module)
-        if funcList:
-            if func in funcList:
-                return True
+        funcDict = self.whiteListDict.get(module)
+        if funcDict:
+            printInfo = funcDict.get(func)
+            if printInfo is not None:
+                return True,printInfo
             else:
-                return False
+                return False, False
         else:
-            return False
+            return False, False
 
     '''
         whether need to reset feature store

@@ -44,12 +44,13 @@ def main():
     if options.verbose:
         loggerHandler.setLevel(True)
 
-    options.filename = '/Users/maodanping/Downloads/jabber.log'
+    options.filename = './trainingdata/signin_signout/authentication_failed/manual_login.log'
+    #options.filename = './logdata/signin_signout/test.log'
     if options.filename:
-        print "--> Parsing Jabber logs from: %s" % options.filename
+        #print "--> Parsing Jabber logs from: %s" % options.filename
         #parse the file or zip
         fileHandler = file(options.filename)
-        fileHandler.openFileAndProc()
+        fileHandler.logFilesProcess()
     else:
         return
 
