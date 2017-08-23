@@ -9,7 +9,7 @@ def setLevel(verbose):
 
 
 formatter = logging.Formatter("%(asctime)s - %(thread)d - %(levelname)s -"
-                              " %(filename)s - %(funcName)s -  %(message)s")
+                              "%(funcName)s -  %(message)s")
 handler = logging.FileHandler("/tmp/testdaemon.log")
 handler.setFormatter(formatter)
 
