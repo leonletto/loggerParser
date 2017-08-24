@@ -88,8 +88,10 @@ class fileExtractor():
         self.resetLoggerDict = resetLoggerDict
 
     def logFilesProcess(self, filename):
+        '''process the log files based on some filter rules/reset rules
+            :return: the whole vocabulary
+        '''
         featureStoreList, featureStoreListBak = [], []
-        '''process the log files based on some filter rules/reset rules'''
         with open(filename, 'r', encoding='ISO-8859-1') as fr:
             for line in fr.readlines():
                 line = line.strip()
@@ -107,7 +109,8 @@ class fileExtractor():
         user maybe signout and send prt,
         so the last time after signout, we couldn't get valuable infos
         '''
-        if len(featureStoreList) <= 3:
+        if len(featureStoreList) <= 2:
+            #featureStoreList.extend(featureStoreListBak)
             featureStoreList = featureStoreListBak
 
         loggerHandler.info(len(featureStoreList))
@@ -117,16 +120,7 @@ class fileExtractor():
         return featureStoreList
 
     def cleanDataFromLine(self, line, returnLevel):
-        '''
-          parse the info from line, if the format of log is as below:
-          2017-08-02 23:31:37,473 ERROR  [0xf69f5534] [rc/services/impl/LifeCycleImpl.cpp(1220)] [Life-Cycle-Logger] [doStartImpl] - Starting....
-
-          and packed the list with the following format:
-          [
-              ['ERROR', [Life-Cycle-Logger], [doStartImpl], 'The config key or config value was empty, unable to continue.'],
-              ......
-          ]
-        '''
+        '''clean data from line, and extract the features'''
         listOfTokens = line.split()
         time, level, module, func, infos = self.getUserfulInfoFromLine(listOfTokens)
 
@@ -148,9 +142,9 @@ class fileExtractor():
 
         if printedInfos:
             funcAddInfos = ' - '.join([func, infos])
-            return [time, level, module, funcAddInfos], False
+            return funcAddInfos, False
         else:
-            return [time, level, module, func], False
+            return func, False
 
         '''
         if len(level) > 0 and  LEVEL_NAME[level] >= returnLevel \

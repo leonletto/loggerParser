@@ -2,9 +2,10 @@
 
 from optparse import *
 
-from fileparser.fileExtractor import *
-# Project Specific modules
 from logger.logger import loggerHandler
+from fileparser.fileExtractor import *
+from trainingAlg.classifierModel import *
+from trainingAlg.NaiveBayseClassifier import *
 
 #third party libs
 #from daemon import Daemon
@@ -44,13 +45,26 @@ def main():
     if options.verbose:
         loggerHandler.setLevel(True)
 
-    options.filename = './trainingdata/signin_signout/authentication_failed/failed_edge_authentication.log'
+    options.filename = './trainingdata/authentication_failed/manual_login.log'
     #options.filename = './logdata/signin_signout/test.log'
     if options.filename:
         #print "--> Parsing Jabber logs from: %s" % options.filename
         #parse the file or zip
+
+        '''
         fileHandler = fileExtractor()
         fileHandler.logFilesProcess(options.filename)
+        '''
+        model = classifierModel()
+        dataset, classes = model.createClassifierModel('./trainingdata')
+
+        clf = NaiveBayseClassifier()
+        condProb, clsProb = clf.train(dataset, classes)
+
+        print(condProb)
+        print(clsProb)
+
+
     else:
         return
 
