@@ -2,7 +2,7 @@
 
 from optparse import *
 
-from fileparser.file import *
+from fileparser.fileExtractor import *
 # Project Specific modules
 from logger.logger import loggerHandler
 
@@ -44,13 +44,13 @@ def main():
     if options.verbose:
         loggerHandler.setLevel(True)
 
-    options.filename = './trainingdata/signin_signout/authentication_failed/manual_login.log'
+    options.filename = './trainingdata/signin_signout/authentication_failed/failed_edge_authentication.log'
     #options.filename = './logdata/signin_signout/test.log'
     if options.filename:
         #print "--> Parsing Jabber logs from: %s" % options.filename
         #parse the file or zip
-        fileHandler = file(options.filename)
-        fileHandler.logFilesProcess()
+        fileHandler = fileExtractor()
+        fileHandler.logFilesProcess(options.filename)
     else:
         return
 

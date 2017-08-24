@@ -55,88 +55,83 @@ RESET_LOGGER_DICT = {
                         }
                     }
 
-class file():
-    def __init__(self, filename, featureWhiteList = FEATURE_WHITE_LIST, resetLoggerDict = RESET_LOGGER_DICT):
-        self.featureStoreList = []
-        self.featureStoreListBak = []
-        self.fr = open(filename)
+class fileExtractor():
+    def __init__(self, featureWhiteList = FEATURE_WHITE_LIST, resetLoggerDict = RESET_LOGGER_DICT):
         self.whiteListDict = featureWhiteList
         self.resetLoggerDict = resetLoggerDict
 
-    '''
-    set white list, and the dict needs to follow the format as below:
-    The True/False for funcName means that whether we concern about detailed logs
-    {
-        'module_name': {
-            'funcName1': True,
-            'funcName2': False,
-            ......
-        }
-        .....
-    }
-    '''
     def setWhiteList(self, featureWhiteList):
+        '''
+        set white list, and the dict needs to follow the format as below:
+            The True/False for funcName means that whether we concern about detailed logs
+            {
+                'module_name': {
+                    'funcName1': True,
+                    'funcName2': False,
+                    ......
+                }
+                .....
+            }
+        '''
         self.whiteListDict = featureWhiteList
 
-    def getWhiteList(self):
-        return self.whiteListDict
-
-    '''
-    set reset rules, and the dict needs to follow the format as below:
-    {
-       'module_name': {
-            'funcName': ['printed logger infos']
-       },
-       .....
-    }
-    '''
     def setResetStorageRules(self, resetLoggerDict):
+        '''
+        set reset rules, and the dict needs to follow the format as below:
+        {
+           'module_name': {
+                'funcName': ['printed logger infos']
+           },
+           .....
+        }
+        '''
         self.resetLoggerDict = resetLoggerDict
 
-    def getResetStorageRules(self):
-        return self.resetLoggerDict
-
-
-    '''
-    process the log files based on some filter rules/reset rules
-    '''
-    def logFilesProcess(self):
-        for line in self.fr.readlines():
-            line = line.strip()
-            ret, needReset = self.parseInfoFromLine(line, WARN)
-            if needReset:
-                self.featureStoreListBak = copy.deepcopy(self.featureStoreList)
-                self.featureStoreList[:] = []
-                loggerHandler.info("clear the featureStoreList, and featureStoreListBak:")
-                loggerHandler.info(self.featureStoreListBak)
-                continue
-            elif ret:
-                self.featureStoreList.append(ret)
+    def logFilesProcess(self, filename):
+        featureStoreList, featureStoreListBak = [], []
+        '''process the log files based on some filter rules/reset rules'''
+        with open(filename, 'r', encoding='ISO-8859-1') as fr:
+            for line in fr.readlines():
+                line = line.strip()
+                ret, needReset = self.cleanDataFromLine(line, WARN)
+                if needReset:
+                    featureStoreListBak = copy.deepcopy(featureStoreList)
+                    featureStoreList[:] = []
+                    loggerHandler.info("clear the featureStoreList, and featureStoreListBak:")
+                    loggerHandler.info(featureStoreListBak)
+                    continue
+                elif ret:
+                    featureStoreList.append(ret)
 
         '''
         user maybe signout and send prt,
         so the last time after signout, we couldn't get valuable infos
         '''
-        if len(self.featureStoreList) <= 2:
-            self.featureStoreList.extend(self.featureStoreListBak)
+        if len(featureStoreList) <= 3:
+            featureStoreList = featureStoreListBak
 
-        loggerHandler.info(len(self.featureStoreList))
-        for storeMeta in self.featureStoreList:
+        loggerHandler.info(len(featureStoreList))
+        for storeMeta in featureStoreList:
             loggerHandler.info(storeMeta)
 
-    '''
-    parse the info from line, if the format of log is as below:
-    2017-08-02 23:31:37,473 ERROR  [0xf69f5534] [rc/services/impl/LifeCycleImpl.cpp(1220)] [Life-Cycle-Logger] [doStartImpl] - Starting....
-    
-    and packed the list with the following format:
-    [
-        ['ERROR', [Life-Cycle-Logger], [doStartImpl], 'The config key or config value was empty, unable to continue.'],
-        ......
-    ]
-    '''
-    def parseInfoFromLine(self, line, returnLevel):
+        return featureStoreList
+
+    def cleanDataFromLine(self, line, returnLevel):
+        '''
+          parse the info from line, if the format of log is as below:
+          2017-08-02 23:31:37,473 ERROR  [0xf69f5534] [rc/services/impl/LifeCycleImpl.cpp(1220)] [Life-Cycle-Logger] [doStartImpl] - Starting....
+
+          and packed the list with the following format:
+          [
+              ['ERROR', [Life-Cycle-Logger], [doStartImpl], 'The config key or config value was empty, unable to continue.'],
+              ......
+          ]
+        '''
         listOfTokens = line.split()
-        time, level, module, func, infos = self.getLevelAndPrintInfo(listOfTokens)
+        time, level, module, func, infos = self.getUserfulInfoFromLine(listOfTokens)
+
+        if time == '' or level == '' or module == '':
+            return [], False
 
         '''
         whether the module need to store as one feature
@@ -165,10 +160,8 @@ class file():
             return [], False
         '''
 
-    '''
-        parse the line and return logLevel, logModuleName, logInfos.
-    '''
-    def getLevelAndPrintInfo(self, listOfTokens):
+    def getUserfulInfoFromLine(self, listOfTokens):
+        '''parse the line and return logLevel, logModuleName, logInfos'''
         retTime = retLevel = retModuleName = retFunc = retInfo = ''
         hypenIdx = -1
 
@@ -191,15 +184,14 @@ class file():
 
         return retTime, retLevel, retModuleName, retFunc, retInfo
 
-
-    '''
-        we don't need to concern all the module and all the functions, 
-        only get infos based on special white list and special functions
-        
-        @return True, need to store the module and func
-                False, ignore the module and func
-    '''
     def existInWhiteList(self, module, func):
+        '''
+            we don't need to concern all the module and all the functions,
+            only get infos based on special white list and special functions
+
+            @return True, need to store the module and func
+                    False, ignore the module and func
+        '''
         funcDict = self.whiteListDict.get(module)
         if funcDict:
             printInfo = funcDict.get(func)
@@ -210,10 +202,8 @@ class file():
         else:
             return False, False
 
-    '''
-        whether need to reset feature store
-    '''
     def existInResetDict(self, module, func, infos):
+        '''whether need to reset feature store'''
         if self.resetLoggerDict.get(module):
             printedLogInfo = self.resetLoggerDict.get(module).get(func)
             if printedLogInfo and printedLogInfo == infos:
