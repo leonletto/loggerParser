@@ -42,7 +42,7 @@ class NaiveBayseClassifier(object):
         for cls, sub_dataset in sub_datasets.items():
             sub_dataset = np.array(sub_dataset)
             # Improve the classifier.
-            cond_prob_vect = np.log((np.sum(sub_dataset, axis=0) + 1) / (np.sum(dataset) + 2))
+            cond_prob_vect = np.log((np.sum(sub_dataset, axis=0) + 0.1) / (np.sum(dataset) + 2))
             cond_probs[cls] = cond_prob_vect
 
         return cond_probs, cls_probs

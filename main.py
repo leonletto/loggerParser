@@ -46,22 +46,55 @@ def main():
         loggerHandler.setLevel(True)
 
     #options.filename = './trainingdata/authentication_failed/test.log'
-    #options.filename = './logdata/signin_signout/test.log'
-    if options.filename:
+
+    #if options.filename:
         #print "--> Parsing Jabber logs from: %s" % options.filename
         #parse the file or zip
-        fileHandler = fileExtractor()
-        fileHandler.logFilesProcess(options.filename)
+
 
     if options.train:
         model = classifierModel()
-        dataset, classes = model.createClassifierModel(options.train)
+        allFeatures, featureForSampleList, labelList = model.createClassifierModel(options.train)
+        dataSet = [model.setDataToVector(numericalVec, allFeatures) for numericalVec in featureForSampleList]
 
         clf = NaiveBayseClassifier()
-        condProb, clsProb = clf.train(dataset, classes)
-
-        print(condProb)
+        condProb, clsProb = clf.train(dataSet, labelList)
         print(clsProb)
+        #test one case
+
+        #options.filename = './trainingdata/authentication_failed/enta.jabberqa_impservice.log'
+        #options.filename = './trainingdata/network_connection/enta_edgedetection403.log'
+        # options.filename = './trainingdata/no_srv_record/1.log'
+        # fileHandler = fileExtractor()
+        # featureForSample = fileHandler.logFilesProcess(options.filename)
+        # numericalVec = model.setDataToVector(featureForSample, allFeatures)
+        # print(numericalVec)
+        # print(clf.classify(numericalVec, condProb, clsProb))
+
+
+        #test all the case which is trained before
+
+        error = 0
+        for test_samples, test_cls in zip(featureForSampleList, labelList):
+            if test_cls != 'no_srv_record':
+                continue
+
+            print(test_samples)
+            print(test_cls)
+            print(allFeatures)
+            test_data = model.setDataToVector(test_samples, allFeatures)
+            print(test_data)
+            pred_cls = clf.classify(test_data, condProb, clsProb)
+            if test_cls != pred_cls:
+                print('Predict: {} -- Actual: {}'.format(pred_cls, test_cls))
+                error += 1
+            else:
+                print('matchd. {}'.format(pred_cls))
+        print('Error Rate: {}'.format(error / len(test_cls)))
+
+
+        #print(condProb)
+        #print(clsProb)
 
 
     else:
