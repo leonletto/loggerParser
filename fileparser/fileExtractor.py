@@ -3,6 +3,8 @@ import sys
 sys.path.append("..")
 from logger.logger import loggerHandler
 
+from enum import Enum
+
 FATAL = 50
 ERROR = 40
 WARN = 30
@@ -25,20 +27,55 @@ LEVEL_NAME = {
     'TRACE' : TRACE,
 }
 
-FEATURE_WHITE_LIST = {
-                        'Life-Cycle-Logger':{
-                            'OnDiscoveryFailed':False,
-                            'OnSystemLoginFailed':False,
-                            'OnAuthenticationFailed':False
-                        },
-                        'service-discovery':{
-                            'evaluateServiceDiscoveryResult':True,
-                            'handleFailedDiscoveryResult':False,
-                        },
-                            'Single-Sign-On-Logger':{
-                            'authorizeNext': False
-                        }
-                       }
+'''
+The detailed rules for logs
+
+@black-list: don't need to add this log as the feature
+@white-list: only add this log as the feature 
+'''
+FEATURE_EXTRACTOR_POLICY = {
+    'blacklist_with_logmsg':{
+        'service-discovery': {
+            'evaluateServiceDiscoveryResult':[
+                'ServiceDiscoveryHandlerResult return code SUCCESS',
+                'ServiceDiscoveryHandlerResult return code FAILED_MALFORMED_EMAIL_ADDRESS',
+                'ServiceDiscoveryHandlerResult return code FAILED_UCM90_CREDENTIALS_NOT_SET',
+                'ServiceDiscoveryHandlerResult return code FAILED_EDGE_CREDENTIALS_NOT_SET',
+            ]
+        },
+        'BrowserListener-Logger': {
+            'SecureOnNavigationCompleted': [
+                'OnNavigationCompleted( Success )'
+            ]
+        }
+    },
+    'whitelist_with_logmsg':{
+
+    },
+    'white-list-with-funcname':{
+        'Life-Cycle-Logger': [
+            'OnDiscoveryFailed',
+            'OnSystemLoginFailed',
+            'OnAuthenticationFailed',
+            'singleSignOnFailedWithErrors'
+        ],
+        'service-discovery': [
+            'handleFailedDiscoveryResult'
+        ],
+        'Single-Sign-On-Logger': [
+            'noTokenInResultSignOn'
+        ],
+    },
+}
+BLACK_LIST_WITH_LOGMSG = 'blacklist_with_logmsg'
+WHITE_LIST_WITH_LOGMSG = 'whitelist_with_logmsg'
+WHITE_LIST_WITH_ONLY_FUNCNAME = 'white-list-with-funcname'
+
+class FeatureExtractorPolicy(Enum):
+    IgnoreFromOneLinePolicy = 1  #ignore this line
+    ConcernedFuncNamePolicy = 2       #only extract funcName as feature
+    ConcernedMsgPolicy = 3       #extract funcName with logMsg
+
 
 '''
 This obj aims to reset logger storage,
@@ -56,35 +93,32 @@ RESET_LOGGER_DICT = {
                     }
 
 class fileExtractor():
-    def __init__(self, featureWhiteList = FEATURE_WHITE_LIST, resetLoggerDict = RESET_LOGGER_DICT):
-        self.whiteListDict = featureWhiteList
+    def __init__(self, extractorPolicy = FEATURE_EXTRACTOR_POLICY, resetLoggerDict = RESET_LOGGER_DICT):
+        self.extractorPolicy = extractorPolicy
         self.resetLoggerDict = resetLoggerDict
 
-    def setWhiteList(self, featureWhiteList):
-        '''
-        set white list, and the dict needs to follow the format as below:
-            The True/False for funcName means that whether we concern about detailed logs
-            {
-                'module_name': {
-                    'funcName1': True,
-                    'funcName2': False,
-                    ......
-                }
-                .....
-            }
-        '''
-        self.whiteListDict = featureWhiteList
-
-    def setResetStorageRules(self, resetLoggerDict):
-        '''
-        set reset rules, and the dict needs to follow the format as below:
+    def setConcernedRules(self, infoConcerned):
+        '''set concerned rules, and the dict needs to follow the format as below:
+        :param:
+        The True/False for funcName means that whether we concern about detailed logs
         {
-           'module_name': {
-                'funcName': ['printed logger infos']
+           'black-list':{
+                'module_name': {
+                    'funcName':['loginfo','loginfo']
+             },
+             ......
            },
-           .....
+           'white-list':{
+                'module_name': {
+                    'funcName':['loginfo','loginfo']
+             },
+             ......
+           }
         }
         '''
+        self.infoConcerned = infoConcerned
+
+    def setResetStorageRules(self, resetLoggerDict):
         self.resetLoggerDict = resetLoggerDict
 
     def logFilesProcess(self, filename):
@@ -95,7 +129,7 @@ class fileExtractor():
         with open(filename, 'r', encoding='ISO-8859-1') as fr:
             for line in fr.readlines():
                 line = line.strip()
-                ret, needReset = self.cleanDataFromLine(line, WARN)
+                ret, needReset = self.cleanDataFromLine(line)
                 if needReset:
                     featureStoreListBak = copy.deepcopy(featureStoreList)
                     featureStoreList[:] = []
@@ -110,8 +144,8 @@ class fileExtractor():
         so the last time after signout, we couldn't get valuable infos
         '''
         if len(featureStoreList) <= 2:
-            #featureStoreList.extend(featureStoreListBak)
-            featureStoreList = featureStoreListBak
+            featureStoreList.extend(featureStoreListBak)
+            #featureStoreList = featureStoreListBak
 
         loggerHandler.info(len(featureStoreList))
         for storeMeta in featureStoreList:
@@ -119,7 +153,7 @@ class fileExtractor():
 
         return featureStoreList
 
-    def cleanDataFromLine(self, line, returnLevel):
+    def cleanDataFromLine(self, line):
         '''clean data from line, and extract the features'''
         listOfTokens = line.split()
         time, level, module, func, infos = self.getUserfulInfoFromLine(listOfTokens)
@@ -128,31 +162,21 @@ class fileExtractor():
             return [], False
 
         '''
-        whether the module need to store as one feature
+        filter with the funcName
+        csf::http::CurlHttpUtils::curlTraceCallback --> curlTraceCallback
         '''
-        inWhiteList, printedInfos = self.existInWhiteList(module, func)
-        if not inWhiteList:
+        func = func.split('::')[-1] if '::' in func else func
+
+        policy = self.matchCleanDataRuels(module, func, infos)
+        if policy == FeatureExtractorPolicy.IgnoreFromOneLinePolicy:
             if not self.existInResetDict(module, func, infos):
                 return [], False
             else:
                 return [], True
-
-        if self.existInResetDict(module, func, infos):
-            return [], True
-
-        if printedInfos:
-            funcAddInfos = ' - '.join([func, infos])
-            return funcAddInfos, False
-        else:
+            #return [], False if not self.existInResetDict(module, func, infos) else [], True
+        elif policy == FeatureExtractorPolicy.ConcernedFuncNamePolicy:
             return func, False
-
-        '''
-        if len(level) > 0 and  LEVEL_NAME[level] >= returnLevel \
-                and len(module) > 0 and len(infos) > 0:
-            return [level, module, func, infos], False
-        else:
-            return [], False
-        '''
+        return ' - '.join([func, infos]), False
 
     def getUserfulInfoFromLine(self, listOfTokens):
         '''parse the line and return logLevel, logModuleName, logInfos'''
@@ -178,27 +202,37 @@ class fileExtractor():
 
         return retTime, retLevel, retModuleName, retFunc, retInfo
 
-    def existInWhiteList(self, module, func):
-        '''
-            we don't need to concern all the module and all the functions,
-            only get infos based on special white list and special functions
+    def matchCleanDataRuels(self, module, func, info):
 
-            @return True, need to store the module and func
-                    False, ignore the module and func
-        '''
-        funcDict = self.whiteListDict.get(module)
-        if funcDict:
-            printInfo = funcDict.get(func)
-            if printInfo is not None:
-                return True,printInfo
-            else:
-                return False, False
-        else:
-            return False, False
+        moduleDict ={}
+        # handler the black_list_with_logMsg policy
+        moduleDict = self.extractorPolicy.get(BLACK_LIST_WITH_LOGMSG).get(module)
+        if moduleDict:
+            logList = moduleDict.get(func)
+            if logList and info in logList:
+                return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
+            elif logList:
+                return FeatureExtractorPolicy.ConcernedMsgPolicy
+
+        # handler the white_list_with_logMsg policy
+        moduleDict = self.extractorPolicy.get(WHITE_LIST_WITH_LOGMSG).get(module)
+        if moduleDict:
+            logList = moduleDict.get(func)
+            if logList and info in logList:
+                return FeatureExtractorPolicy.ConcernedMsgPolicy
+            elif logList:
+                return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
+
+        # handler the white_list_with_funcName policy
+        moduleList = self.extractorPolicy.get(WHITE_LIST_WITH_ONLY_FUNCNAME).get(module)
+        if moduleList and func in moduleList:
+            return FeatureExtractorPolicy.ConcernedFuncNamePolicy
+
+        return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
+
 
     def existInResetDict(self, module, func, infos):
         '''whether need to reset feature store'''
         if self.resetLoggerDict.get(module):
             printedLogInfo = self.resetLoggerDict.get(module).get(func)
-            if printedLogInfo and printedLogInfo == infos:
-                return [], True
+            return True if printedLogInfo and printedLogInfo == infos else False

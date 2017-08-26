@@ -37,7 +37,7 @@ def main():
     parser = OptionParser()
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Be more verbose")
     parser.add_option("-f", "--file", metavar="FILE", dest="filename", default="", help="Parse the file or zip")
-    parser.add_option("-t", "--train", metavar="PATH", dest="path", help="Redo train algorithm by the special path, and will generate new example data."
+    parser.add_option("-t", "--train", metavar="PATH", dest="train", help="Redo train algorithm by the special path, and will generate new example data."
                                                                              "[don't recommand to use this option for user]")
 
 
@@ -45,18 +45,17 @@ def main():
     if options.verbose:
         loggerHandler.setLevel(True)
 
-    options.filename = './trainingdata/authentication_failed/manual_login.log'
+    #options.filename = './trainingdata/authentication_failed/test.log'
     #options.filename = './logdata/signin_signout/test.log'
     if options.filename:
         #print "--> Parsing Jabber logs from: %s" % options.filename
         #parse the file or zip
-
-        '''
         fileHandler = fileExtractor()
         fileHandler.logFilesProcess(options.filename)
-        '''
+
+    if options.train:
         model = classifierModel()
-        dataset, classes = model.createClassifierModel('./trainingdata')
+        dataset, classes = model.createClassifierModel(options.train)
 
         clf = NaiveBayseClassifier()
         condProb, clsProb = clf.train(dataset, classes)
