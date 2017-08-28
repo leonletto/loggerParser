@@ -1,9 +1,11 @@
 import copy
 import sys
+import os
 sys.path.append("..")
 from logger.logger import loggerHandler
 
 from enum import Enum
+import zipfile
 
 FATAL = 50
 ERROR = 40
@@ -121,23 +123,59 @@ class fileExtractor():
     def setResetStorageRules(self, resetLoggerDict):
         self.resetLoggerDict = resetLoggerDict
 
-    def logFilesProcess(self, filename):
+    def logFilesProcess(self, fileOrdirName):
         '''process the log files based on some filter rules/reset rules
-            :return: the whole vocabulary
+            :return:
+                LIST type: the features extracted from this file
+
+                LIST type: the detailed infos about features
         '''
+        if fileOrdirName.rfind('.zip') != -1:
+            return self.unzipFiles(fileOrdirName)
+        elif fileOrdirName.rfind('.log') != -1:
+            return self.parseSingleFile([fileOrdirName])
+        else:
+            loggerHandler.info('the filename: %s did not match' % fileOrdirName)
+            return [],[]
+
+    def unzipFiles(self, filename):
+        zip_file = zipfile.ZipFile(filename)
+        extractedPath = filename + "_files"
+        if os.path.isdir(extractedPath):
+            pass
+        else:
+            os.mkdir(extractedPath)
+
+        fullPathNameList = []
+        for name in zip_file.namelist():
+            if name.rfind('.log') == -1:
+                continue
+
+            zip_file.extract(name, extractedPath)
+
+            fullPathNameList.append(extractedPath + '/' + name)
+
+        fullPathNameList.sort(reverse=True)
+        return self.parseSingleFile(fullPathNameList)
+
+    def parseSingleFile(self, filenameList):
         featureStoreList, featureStoreListBak = [], []
-        with open(filename, 'r', encoding='ISO-8859-1') as fr:
-            for line in fr.readlines():
-                line = line.strip()
-                ret, needReset = self.cleanDataFromLine(line)
-                if needReset:
-                    featureStoreListBak = copy.deepcopy(featureStoreList)
-                    featureStoreList[:] = []
-                    loggerHandler.info("clear the featureStoreList, and featureStoreListBak:")
-                    loggerHandler.info(featureStoreListBak)
-                    continue
-                elif ret:
-                    featureStoreList.append(ret)
+        detailedInfoList, detailedInfoListBak = [], []
+        for filename in filenameList:
+            with open(filename, 'r', encoding='ISO-8859-1') as fr:
+                for line in fr.readlines():
+                    line = line.strip()
+                    features, detailedInfos, needReset = self.cleanDataFromLine(line)
+                    if needReset:
+                        featureStoreListBak = copy.deepcopy(featureStoreList)
+                        detailedInfoListBak = copy.deepcopy(detailedInfoList)
+
+                        featureStoreList[:] = []
+                        detailedInfoList[:] = []
+                        continue
+                    elif features and detailedInfos:
+                        featureStoreList.append(features)
+                        detailedInfoList.append(detailedInfos)
 
         '''
         user maybe signout and send prt,
@@ -145,38 +183,40 @@ class fileExtractor():
         '''
         if len(featureStoreList) <= 2:
             featureStoreList.extend(featureStoreListBak)
-            #featureStoreList = featureStoreListBak
+            detailedInfoList.extend(detailedInfoListBak)
 
-        loggerHandler.info(len(featureStoreList))
-        for storeMeta in featureStoreList:
-            loggerHandler.info(storeMeta)
-
-        return featureStoreList
+        return featureStoreList, detailedInfoList
 
     def cleanDataFromLine(self, line):
-        '''clean data from line, and extract the features'''
+        '''clean data from line, and extract the features
+        :param:
+                line: the raw infos from one line
+                2017-08-22 21:48:02,282 INFO  [time] [threadId] [packageName] [moduleName] [funcName] - detailed log
+
+        :return:
+                STRING type: OnDiscoveryFailed
+                List type:   [[time, module, funcName, logInfos], ...]
+        '''
         listOfTokens = line.split()
         time, level, module, func, infos = self.getUserfulInfoFromLine(listOfTokens)
 
         if time == '' or level == '' or module == '':
-            return [], False
+            return [], [], False
 
-        '''
-        filter with the funcName
-        csf::http::CurlHttpUtils::curlTraceCallback --> curlTraceCallback
-        '''
+        '''format the funcName and detailed logs'''
         func = func.split('::')[-1] if '::' in func else func
+        detailedLogs = time + ' [' + module + '] [' + func + '] - ' + infos
 
         policy = self.matchCleanDataRuels(module, func, infos)
         if policy == FeatureExtractorPolicy.IgnoreFromOneLinePolicy:
             if not self.existInResetDict(module, func, infos):
-                return [], False
+                return [],[], False
             else:
-                return [], True
-            #return [], False if not self.existInResetDict(module, func, infos) else [], True
+                return [], [], True
         elif policy == FeatureExtractorPolicy.ConcernedFuncNamePolicy:
-            return func, False
-        return ' - '.join([func, infos]), False
+            return func, detailedLogs,  False
+
+        return ' - '.join([func, infos]), detailedLogs, False
 
     def getUserfulInfoFromLine(self, listOfTokens):
         '''parse the line and return logLevel, logModuleName, logInfos'''

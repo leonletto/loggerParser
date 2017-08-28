@@ -8,7 +8,9 @@ from fileparser.fileExtractor import *
 class classifierModel(object):
     def createClassifierModel(self, dir):
         '''
-        :param dir: the dir for doing feature extractor
+        :param
+            dir: the dir for doing feature extractor
+
         :return:
             trainDataSet: M*N Matrix
                 [
@@ -34,7 +36,9 @@ class classifierModel(object):
 
     def getTrainingData(self, dir):
         '''
-        :param dir: the dir for doing feature extractor
+        :param
+            dir: the dir for doing feature extractor
+
         :return:
             allFeatures: the whole extractor info from log.
                 ['singleSignOnFailedWithErrors', 'evaluateServiceDiscoveryResult - ServiceDiscoveryHandlerResult return code FAILED_EDGE_AUTHENTICATION',
@@ -54,7 +58,7 @@ class classifierModel(object):
                 ]
 
         '''
-        allFeatures, featureForSampleList, labelList = [],[],[]
+        detailLogs, allFeatures, featureForSampleList, labelList = [], [],[],[]
 
         extractor = fileExtractor()
         subDirList = os.listdir(dir)
@@ -68,9 +72,9 @@ class classifierModel(object):
                 if self.isValidName(fileName) is False:
                     continue
                 print(fileName)
-                features = extractor.logFilesProcess(dir + '/' + label + '/' + fileName)
-                featureForSampleList.append(features)
-                allFeatures.extend(features)
+                feature, _ = extractor.logFilesProcess(dir + '/' + label + '/' + fileName)
+                featureForSampleList.append(feature)
+                allFeatures.extend(feature)
                 labelList.append(label)
 
         allFeatures = list(set(allFeatures))
@@ -78,8 +82,8 @@ class classifierModel(object):
 
     def setDataToVector(self, sample, vocabList):
         ''' set the sample with numeric
-        :return: list with numeric data
-                [0,1,0,1,0,0...]
+        :return:
+                list with numeric data [0,1,0,1,0,0...]
         '''
         numericalVec = [0] * len(vocabList)
 
