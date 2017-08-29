@@ -1,11 +1,12 @@
 import copy
 import sys
 import os
+import zipfile
+
+from .featureExtractorPolicy import *
+
 sys.path.append("..")
 from logger.logger import loggerHandler
-
-from enum import Enum
-import zipfile
 
 FATAL = 50
 ERROR = 40
@@ -29,135 +30,89 @@ LEVEL_NAME = {
     'TRACE' : TRACE,
 }
 
-'''
-The detailed rules for logs
-
-@black-list: don't need to add this log as the feature
-@white-list: only add this log as the feature 
-'''
-FEATURE_EXTRACTOR_POLICY = {
-    'blacklist_with_logmsg':{
-        'service-discovery': {
-            'evaluateServiceDiscoveryResult':[
-                'ServiceDiscoveryHandlerResult return code SUCCESS',
-                'ServiceDiscoveryHandlerResult return code FAILED_MALFORMED_EMAIL_ADDRESS',
-                'ServiceDiscoveryHandlerResult return code FAILED_UCM90_CREDENTIALS_NOT_SET',
-                'ServiceDiscoveryHandlerResult return code FAILED_EDGE_CREDENTIALS_NOT_SET',
-            ]
-        },
-        'BrowserListener-Logger': {
-            'SecureOnNavigationCompleted': [
-                'OnNavigationCompleted( Success )'
-            ]
-        }
-    },
-    'whitelist_with_logmsg':{
-        'Single-Sign-On-Logger': {
-            'reAuthenticateCredentials':[
-                'Failed to call authorizeNext due to no suitable authorize url'
-            ]
-        },
-        'service-discovery':{
-            'callOnFailedDiscoveryResultOnDispatcherThread':[
-                'Discovery failed*'
-            ],
-            'handleSuccessfulDiscoveryResult':[
-                'Failed to map authenticator Id. Discovery failed.'
-            ]
-        },
-        'authentication-handler':{
-            'AuthenticateImpl':[
-                'Authentication Failed'
-            ]
-        }
-    },
-    'white-list-with-funcname':{
-        'Life-Cycle-Logger': [
-            'singleSignOnFailedWithErrors'
-        ],
-        'service-discovery': [
-            'handleFailedDiscoveryResult'
-        ],
-        'Single-Sign-On-Logger': [
-            'handleRefreshTokenFailure'
-        ],
-    },
-}
-
-BLACK_LIST_WITH_LOGMSG = 'blacklist_with_logmsg'
-WHITE_LIST_WITH_LOGMSG = 'whitelist_with_logmsg'
-WHITE_LIST_WITH_ONLY_FUNCNAME = 'white-list-with-funcname'
-
-class FeatureExtractorPolicy(Enum):
-    IgnoreFromOneLinePolicy = 1  #ignore this line
-    ConcernedFuncNamePolicy = 2       #only extract funcName as feature
-    ConcernedMsgPolicy = 3       #extract funcName with logMsg
-
-
-'''
-This obj aims to reset logger storage,
-due to the app signin/signout repeatedly 
-
-Notice: the moduleName in reset rules must be included in filter rules
-'''
-RESET_LOGGER_DICT = {
-                        'Life-Cycle-Logger': {
-                            'updateState': 'Changing lifecycle State to: SIGNEDOUT'
-                        },
-                        'LogController':{
-                            'init': '***** Jabber launched, start logging *****'
-                        }
-                    }
-
 class fileExtractor():
     def __init__(self, extractorPolicy = FEATURE_EXTRACTOR_POLICY, resetLoggerDict = RESET_LOGGER_DICT):
         self.extractorPolicy = extractorPolicy
         self.resetLoggerDict = resetLoggerDict
 
     def setConcernedRules(self, infoConcerned):
-        '''set concerned rules, and the dict needs to follow the format as below:
-        :param:
-        The True/False for funcName means that whether we concern about detailed logs
-        {
-           'black-list':{
-                'module_name': {
-                    'funcName':['loginfo','loginfo']
-             },
-             ......
-           },
-           'white-list':{
-                'module_name': {
-                    'funcName':['loginfo','loginfo']
-             },
-             ......
-           }
-        }
-        '''
         self.infoConcerned = infoConcerned
 
     def setResetStorageRules(self, resetLoggerDict):
         self.resetLoggerDict = resetLoggerDict
 
-    def logFilesProcess(self, fileOrdirName):
+    def logDirProcess(self, dirName):
+        '''process the files from dir based on some filter rules/reset rules
+            :return:
+                {
+                    fileName_1:{
+                        features:   [],
+                        detailInfo: []
+                    },
+                    fileName_2:{
+                        features:   [],
+                        detailInfo: []
+                    },
+                }
+        '''
+        if os.path.isdir(dirName):
+            return self.parsingDir(dirName)
+
+    def parsingDir(self, dirName):
+        featureInfos = {}
+        fileNameList = os.listdir(dirName)
+        dirName = dirName if dirName[-1] == '/' else dirName + '/'
+        for fileName in fileNameList:
+            if fileName == '.DS_Store' or fileName[-3:].lower() == 'txt' \
+                    or fileName[-3:].lower() == 'htm' or fileName[-3:].lower() == 'png':
+                continue
+
+            filePathName = dirName + fileName
+            if os.path.isdir(filePathName) == 1:
+                continue
+
+            featuresForOneSample, detailInfoForOneSample = {}, {}
+            loggerHandler.info('parse dir: %s' % filePathName)
+            features, detailInfos = self.logFilesProcess(filePathName)
+
+            featuresForOneSample['features'] = features
+            featuresForOneSample['detailInfo'] = detailInfos
+            featureInfos[filePathName] = featuresForOneSample
+        return featureInfos
+
+    def logFilesProcess(self, fileOrDirName):
         '''process the log files based on some filter rules/reset rules
             :return:
                 LIST type: the features extracted from this file
 
                 LIST type: the detailed infos about features
         '''
-        if fileOrdirName.rfind('.zip') != -1:
-            return self.unzipFiles(fileOrdirName)
-        elif fileOrdirName.rfind('.log') != -1:
-            return self.parseSingleFile([fileOrdirName])
+        if os.path.isdir(fileOrDirName):
+            fileNameList = os.listdir(fileOrDirName)
+            fileOrDirName = fileOrDirName if fileOrDirName[-1] == '/' else fileOrDirName + '/'
+            newLogList = []
+            for fileName in fileNameList:
+                if fileName.rfind('.log') == -1 and fileName.find('fileSize') == 1:
+                    continue
+                else:
+                    newLogList.append(fileName)
+            newLogList.sort(reverse=True)
+            newLogList = [fileOrDirName + '/' + fileName for fileName in newLogList]
+            return self.parseSingleFile(newLogList)
+
+        if fileOrDirName.rfind('.zip') != -1:
+            return self.parsingZipFile(fileOrDirName)
+        elif fileOrDirName.rfind('.log') != -1:
+            return self.parseSingleFile([fileOrDirName])
         else:
-            loggerHandler.info('the filename: %s did not match' % fileOrdirName)
+            loggerHandler.info('the filename: %s did not match' % fileOrDirName)
             return [],[]
 
-    def unzipFiles(self, filename):
-        zip_file = zipfile.ZipFile(filename)
-        extractedPath = filename + "_files"
+    def parsingZipFile(self, zipFileName):
+        zip_file = zipfile.ZipFile(zipFileName)
+        extractedPath = zipFileName + "_files"
         if os.path.isdir(extractedPath):
-            pass
+            return [],[]
         else:
             os.mkdir(extractedPath)
 
@@ -170,13 +125,16 @@ class fileExtractor():
 
             fullPathNameList.append(extractedPath + '/' + name)
 
+        zip_file.close()
         fullPathNameList.sort(reverse=True)
         return self.parseSingleFile(fullPathNameList)
 
     def parseSingleFile(self, filenameList):
         featureStoreList, featureStoreListBak = [], []
         detailedInfoList, detailedInfoListBak = [], []
+        #filenameList = filenameList if filenameList[-1] == '/' else filenameList + '/'
         for filename in filenameList:
+            #filename = filenameList + filename
             with open(filename, 'r', encoding='ISO-8859-1') as fr:
                 for line in fr.readlines():
                     line = line.strip()

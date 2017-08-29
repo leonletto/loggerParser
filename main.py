@@ -48,36 +48,31 @@ def main():
     if options.verbose:
         loggerHandler.setLevel(True)
 
-    #options.filename = './trainingdata/authentication_failed/test.log'
+    options.train = './trainingdata/'
+    model = classifierModel()
+    allFeatures, featureForSampleList, labelList = model.createClassifierModel(options.train)
+    print(allFeatures)
+    dataSet = [model.setDataToVector(numericalVec, allFeatures) for numericalVec in featureForSampleList]
 
+    clf = NaiveBayseClassifier()
+    condProb, clsProb = clf.train(dataSet, labelList)
+    print(clsProb)
+
+    # options.filename = './trainingdata/authentication_failed/test.log'
     if options.filename:
         print("--> Parsing Jabber logs from: %s" % options.filename)
-
-
-    options.train = './trainingdata/'
-    if options.train:
-        model = classifierModel()
-        allFeatures, featureForSampleList, labelList = model.createClassifierModel(options.train)
-        print(allFeatures)
-        dataSet = [model.setDataToVector(numericalVec, allFeatures) for numericalVec in featureForSampleList]
-
-        clf = NaiveBayseClassifier()
-        condProb, clsProb = clf.train(dataSet, labelList)
-        print(clsProb)
 
         # test different single sample
         #options.filename = './trainingdata/authentication_failed/enta.jabberqa_impservice.log'
         #options.filename = './trainingdata/network_connection/enta_edgedetection403.log'
         #options.filename = './trainingdata/no_srv_record/1.log'
-        #options.filename = '/Users/maodanping/Downloads/PROBLEM_FEEDBACK_Cisco_Jabber_10.52_25-08-2017.zip'
-        options.filename = '/Users/maodanping/Downloads/sso22_manyNotification.log'
+        options.filename = '/Users/maodanping/Downloads/PROBLEM_FEEDBACK_Cisco_Jabber_10.52_25-08-2017.zip'
+        #options.filename = '/Users/maodanping/Downloads/sso22_manyNotification.log'
         fileHandler = fileExtractor()
         featureForSample, detailedInfoList = fileHandler.logFilesProcess(options.filename)
         print(featureForSample)
         print(detailedInfoList)
         numericalVec = model.setDataToVector(featureForSample, allFeatures)
-        #print(numericalVec)
-        #print(detailedInfoList)
         print(clf.classify(numericalVec, condProb, clsProb))
 
 
@@ -127,9 +122,11 @@ def main():
         #plt.xticks(np.arange(0, len(probs)), (r'$%s$' % allFeatures[0]))
         plt.show()
 
-
-    else:
-        return
+    options.directory = '/Users/maodanping/Downloads/prt_attachments/20170828'
+    if options.directory:
+        fileHandler = fileExtractor()
+        featuresMap = fileHandler.logDirProcess(options.directory)
+        print(featuresMap)
 
 if __name__ == '__main__':
     main()
