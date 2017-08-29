@@ -52,23 +52,38 @@ FEATURE_EXTRACTOR_POLICY = {
         }
     },
     'whitelist_with_logmsg':{
-
+        'Single-Sign-On-Logger': {
+            'reAuthenticateCredentials':[
+                'Failed to call authorizeNext due to no suitable authorize url'
+            ]
+        },
+        'service-discovery':{
+            'callOnFailedDiscoveryResultOnDispatcherThread':[
+                'Discovery failed*'
+            ],
+            'handleSuccessfulDiscoveryResult':[
+                'Failed to map authenticator Id. Discovery failed.'
+            ]
+        },
+        'authentication-handler':{
+            'AuthenticateImpl':[
+                'Authentication Failed'
+            ]
+        }
     },
     'white-list-with-funcname':{
         'Life-Cycle-Logger': [
-            'OnDiscoveryFailed',
-            'OnSystemLoginFailed',
-            'OnAuthenticationFailed',
             'singleSignOnFailedWithErrors'
         ],
         'service-discovery': [
             'handleFailedDiscoveryResult'
         ],
         'Single-Sign-On-Logger': [
-            'noTokenInResultSignOn'
+            'handleRefreshTokenFailure'
         ],
     },
 }
+
 BLACK_LIST_WITH_LOGMSG = 'blacklist_with_logmsg'
 WHITE_LIST_WITH_LOGMSG = 'whitelist_with_logmsg'
 WHITE_LIST_WITH_ONLY_FUNCNAME = 'white-list-with-funcname'
@@ -258,9 +273,12 @@ class fileExtractor():
         moduleDict = self.extractorPolicy.get(WHITE_LIST_WITH_LOGMSG).get(module)
         if moduleDict:
             logList = moduleDict.get(func)
-            if logList and info in logList:
-                return FeatureExtractorPolicy.ConcernedMsgPolicy
-            elif logList:
+            if logList:
+                for logRegExp in logList:
+                    if logRegExp[-1] == '*' and info.find(logRegExp[:-2]):
+                        return FeatureExtractorPolicy.ConcernedMsgPolicy
+                    elif logRegExp == info:
+                        return FeatureExtractorPolicy.ConcernedMsgPolicy
                 return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
 
         # handler the white_list_with_funcName policy
