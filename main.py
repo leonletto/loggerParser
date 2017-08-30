@@ -51,14 +51,18 @@ def main():
     options.train = './trainingdata/'
     model = classifierModel()
     allFeatures, featureForSampleList, labelList = model.createClassifierModel(options.train)
-    print(allFeatures)
+    # print(featureForSampleList)
+    # print(allFeatures)
+    # print(labelList)
+
     dataSet = [model.setDataToVector(numericalVec, allFeatures) for numericalVec in featureForSampleList]
 
     clf = NaiveBayseClassifier()
     condProb, clsProb = clf.train(dataSet, labelList)
     print(clsProb)
 
-    # options.filename = './trainingdata/authentication_failed/test.log'
+    #options.filename = './trainingdata/authentication_failed/test.log'
+    #options.filename = '/Users/maodanping/Downloads/prt-css/20170829/20170829_175504_Jabber-Android-2017-08-29_11h58m-LOGS.zip'
     if options.filename:
         print("--> Parsing Jabber logs from: %s" % options.filename)
 
@@ -66,14 +70,14 @@ def main():
         #options.filename = './trainingdata/authentication_failed/enta.jabberqa_impservice.log'
         #options.filename = './trainingdata/network_connection/enta_edgedetection403.log'
         #options.filename = './trainingdata/no_srv_record/1.log'
-        options.filename = '/Users/maodanping/Downloads/PROBLEM_FEEDBACK_Cisco_Jabber_10.52_25-08-2017.zip'
+        #options.filename = '/Users/maodanping/Downloads/20170829_175504_Jabber-Android-2017-08-29_11h58m-LOGS.zip'
         #options.filename = '/Users/maodanping/Downloads/sso22_manyNotification.log'
         fileHandler = fileExtractor()
         featureForSample, detailedInfoList = fileHandler.logFilesProcess(options.filename)
         print(featureForSample)
         print(detailedInfoList)
-        numericalVec = model.setDataToVector(featureForSample, allFeatures)
-        print(clf.classify(numericalVec, condProb, clsProb))
+        #numericalVec = model.setDataToVector(featureForSample, allFeatures)
+        #print(clf.classify(numericalVec, condProb, clsProb))
 
 
         #test all the case which is trained before
@@ -98,31 +102,31 @@ def main():
 
         #show the probabilities for classes
         #print(allFeatures)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        for cls, probs in condProb.items():
-            print(probs * clsProb[cls])
-            print(clsProb[cls])
-            ax.scatter(np.arange(0, len(probs)),
-                       probs * clsProb[cls],
-                       label=cls,
-                       alpha=0.3)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111)
+        # for cls, probs in condProb.items():
+        #     print(probs * clsProb[cls])
+        #     print(clsProb[cls])
+        #     ax.scatter(np.arange(0, len(probs)),
+        #                probs * clsProb[cls],
+        #                label=cls,
+        #                alpha=0.3)
+        #
+        #     ax.legend(loc='upper center',
+        #               bbox_to_anchor=(0.5,  # horizontal
+        #                               1.15),  # vertical
+        #               ncol=3, fancybox=True)
+        # printedFeatures = [ feature[-25: -1] for feature in allFeatures]
+        #
+        # plt.xticks(np.arange(0, len(probs)), [r'$%s$'%printedFeatures[0],r'$%s$'%printedFeatures[1],r'$%s$'%printedFeatures[2],r'$%s$'%printedFeatures[3],
+        #            r'$%s$'%printedFeatures[4], r'$%s$'%printedFeatures[5], r'$%s$'%printedFeatures[6], r'$%s$'%printedFeatures[7],
+        #            r'$%s$'%printedFeatures[8],r'$%s$'%printedFeatures[9],r'$%s$'%printedFeatures[10], r'$%s$'%printedFeatures[11],
+        #            r'$%s$' % printedFeatures[12]],fontsize=6, rotation=40)
+        #
+        # #plt.xticks(np.arange(0, len(probs)), (r'$%s$' % allFeatures[0]))
+        # plt.show()
 
-            ax.legend(loc='upper center',
-                      bbox_to_anchor=(0.5,  # horizontal
-                                      1.15),  # vertical
-                      ncol=3, fancybox=True)
-        printedFeatures = [ feature[-25: -1] for feature in allFeatures]
-
-        plt.xticks(np.arange(0, len(probs)), [r'$%s$'%printedFeatures[0],r'$%s$'%printedFeatures[1],r'$%s$'%printedFeatures[2],r'$%s$'%printedFeatures[3],
-                   r'$%s$'%printedFeatures[4], r'$%s$'%printedFeatures[5], r'$%s$'%printedFeatures[6], r'$%s$'%printedFeatures[7],
-                   r'$%s$'%printedFeatures[8],r'$%s$'%printedFeatures[9],r'$%s$'%printedFeatures[10], r'$%s$'%printedFeatures[11],
-                   r'$%s$' % printedFeatures[12]],fontsize=6, rotation=40)
-
-        #plt.xticks(np.arange(0, len(probs)), (r'$%s$' % allFeatures[0]))
-        plt.show()
-
-    options.directory = '/Users/maodanping/Downloads/prt_attachments/20170828'
+    options.directory = '/Users/maodanping/Downloads/prt-css/20170829'
     if options.directory:
         fileHandler = fileExtractor()
         featuresMap = fileHandler.logDirProcess(options.directory)

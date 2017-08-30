@@ -67,10 +67,14 @@ class classifierModel(object):
             if self.isValidName(label) is False:
                 continue
 
+            # if label != 'network_connection':
+            #     continue
+
             trainingFileSet = os.listdir(dir + '/' + label)
             for fileName in trainingFileSet:
                 if self.isValidName(fileName) is False:
                     continue
+
                 print(fileName)
                 feature, _ = extractor.logFilesProcess(dir + '/' + label + '/' + fileName)
                 featureForSampleList.append(feature)

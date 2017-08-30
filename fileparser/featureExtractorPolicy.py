@@ -16,6 +16,17 @@ The detailed rules for logs
 
 @black-list: don't need to add this log as the feature
 @white-list: only add this log as the feature
+
+policy rule:
+if '*' or '^' at the end, will match any character
+but '^' means only the log in policy is matched.
+    '*' means the feature can be any character 
+e.g.
+                       feature 
+ 'Discovery failed*'  --------->  Discovery failed because of bad network
+                                  Discovery failed because of unresolved host
+                                  
+ 'Discovery failed^'  --------->  Discovery failed
 '''
 FEATURE_EXTRACTOR_POLICY = {
     'blacklist_with_logmsg':{
@@ -41,7 +52,7 @@ FEATURE_EXTRACTOR_POLICY = {
         },
         'service-discovery':{
             'callOnFailedDiscoveryResultOnDispatcherThread':[
-                'Discovery failed*'
+                'Discovery Failure*'
             ],
             'handleSuccessfulDiscoveryResult':[
                 'Failed to map authenticator Id. Discovery failed.'
@@ -50,6 +61,11 @@ FEATURE_EXTRACTOR_POLICY = {
         'authentication-handler':{
             'AuthenticateImpl':[
                 'Authentication Failed'
+            ]
+        },
+        'csf.httpclient':{
+            'executeImpl':[
+                'There was an issue performing ^'
             ]
         }
     },

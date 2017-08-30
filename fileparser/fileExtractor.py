@@ -87,6 +87,7 @@ class fileExtractor():
 
                 LIST type: the detailed infos about features
         '''
+
         if os.path.isdir(fileOrDirName):
             fileNameList = os.listdir(fileOrDirName)
             fileOrDirName = fileOrDirName if fileOrDirName[-1] == '/' else fileOrDirName + '/'
@@ -96,8 +97,8 @@ class fileExtractor():
                     continue
                 else:
                     newLogList.append(fileName)
-            newLogList.sort(reverse=True)
-            newLogList = [fileOrDirName + '/' + fileName for fileName in newLogList]
+                    newLogList.sort(reverse=True)
+                    newLogList = [fileOrDirName + '/' + fileName for fileName in newLogList]
             return self.parseSingleFile(newLogList)
 
         if fileOrDirName.rfind('.zip') != -1:
@@ -112,7 +113,7 @@ class fileExtractor():
         zip_file = zipfile.ZipFile(zipFileName)
         extractedPath = zipFileName + "_files"
         if os.path.isdir(extractedPath):
-            return [],[]
+            pass
         else:
             os.mkdir(extractedPath)
 
@@ -171,25 +172,27 @@ class fileExtractor():
                 List type:   [[time, module, funcName, logInfos], ...]
         '''
         listOfTokens = line.split()
-        time, level, module, func, infos = self.getUserfulInfoFromLine(listOfTokens)
+        time, level, module, func, info = self.getUserfulInfoFromLine(listOfTokens)
 
         if time == '' or level == '' or module == '':
             return [], [], False
 
         '''format the funcName and detailed logs'''
         func = func.split('::')[-1] if '::' in func else func
-        detailedLogs = time + ' [' + module + '] [' + func + '] - ' + infos
 
-        policy = self.matchCleanDataRuels(module, func, infos)
+        detailedLogs = time + ' [' + module + '] [' + func + '] - ' + info
+        policy, infoFeatureStr = self.matchCleanDataRuels(module, func, info)
+
         if policy == FeatureExtractorPolicy.IgnoreFromOneLinePolicy:
-            if not self.existInResetDict(module, func, infos):
+            if not self.existInResetDict(module, func, info):
                 return [],[], False
             else:
                 return [], [], True
         elif policy == FeatureExtractorPolicy.ConcernedFuncNamePolicy:
-            return func, detailedLogs,  False
+            return func, detailedLogs, False
 
-        return ' - '.join([func, infos]), detailedLogs, False
+        print(infoFeatureStr)
+        return ' - '.join([func, infoFeatureStr]), detailedLogs, False
 
     def getUserfulInfoFromLine(self, listOfTokens):
         '''parse the line and return logLevel, logModuleName, logInfos'''
@@ -218,14 +221,19 @@ class fileExtractor():
     def matchCleanDataRuels(self, module, func, info):
 
         moduleDict ={}
+        newFeatureStr = info
         # handler the black_list_with_logMsg policy
         moduleDict = self.extractorPolicy.get(BLACK_LIST_WITH_LOGMSG).get(module)
         if moduleDict:
             logList = moduleDict.get(func)
-            if logList and info in logList:
-                return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
-            elif logList:
-                return FeatureExtractorPolicy.ConcernedMsgPolicy
+            if logList:
+                for logRegExp in logList:
+                    if logRegExp[-1] == '*' and info.find(logRegExp[:-2]) != -1:
+                        return FeatureExtractorPolicy.IgnoreFromOneLinePolicy, newFeatureStr
+                    elif logRegExp == info:
+                        return FeatureExtractorPolicy.IgnoreFromOneLinePolicy, newFeatureStr
+
+                return FeatureExtractorPolicy.ConcernedMsgPolicy, newFeatureStr
 
         # handler the white_list_with_logMsg policy
         moduleDict = self.extractorPolicy.get(WHITE_LIST_WITH_LOGMSG).get(module)
@@ -233,18 +241,22 @@ class fileExtractor():
             logList = moduleDict.get(func)
             if logList:
                 for logRegExp in logList:
-                    if logRegExp[-1] == '*' and info.find(logRegExp[:-2]):
-                        return FeatureExtractorPolicy.ConcernedMsgPolicy
+                    if logRegExp[-1] == '*' and info.find(logRegExp[:-2]) != -1:
+                        return FeatureExtractorPolicy.ConcernedMsgPolicy, newFeatureStr
+                    elif logRegExp[-1] == '^' and info.find(logRegExp[:-2]) != -1:
+                        newFeatureStr = logRegExp[:-2]
+                        return FeatureExtractorPolicy.ConcernedMsgPolicy, newFeatureStr
                     elif logRegExp == info:
-                        return FeatureExtractorPolicy.ConcernedMsgPolicy
-                return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
+                        return FeatureExtractorPolicy.ConcernedMsgPolicy, newFeatureStr
+
+                return FeatureExtractorPolicy.IgnoreFromOneLinePolicy, newFeatureStr
 
         # handler the white_list_with_funcName policy
         moduleList = self.extractorPolicy.get(WHITE_LIST_WITH_ONLY_FUNCNAME).get(module)
         if moduleList and func in moduleList:
-            return FeatureExtractorPolicy.ConcernedFuncNamePolicy
+            return FeatureExtractorPolicy.ConcernedFuncNamePolicy, newFeatureStr
 
-        return FeatureExtractorPolicy.IgnoreFromOneLinePolicy
+        return FeatureExtractorPolicy.IgnoreFromOneLinePolicy, newFeatureStr
 
 
     def existInResetDict(self, module, func, infos):
