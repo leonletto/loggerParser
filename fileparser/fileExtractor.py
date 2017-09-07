@@ -191,7 +191,6 @@ class fileExtractor():
         elif policy == FeatureExtractorPolicy.ConcernedFuncNamePolicy:
             return func, detailedLogs, False
 
-        print(infoFeatureStr)
         return ' - '.join([func, infoFeatureStr]), detailedLogs, False
 
     def getUserfulInfoFromLine(self, listOfTokens):

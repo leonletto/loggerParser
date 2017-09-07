@@ -1,5 +1,7 @@
 import os
 import sys
+from pathlib import Path
+import numpy as np
 
 sys.path.append("..")
 from logger.logger import loggerHandler
@@ -21,14 +23,7 @@ class classifierModel(object):
             trainClasses: 1*K Matrix
                 ['network_connection', 'network_connection', 'no_srv_record', 'no_srv_record', 'sso_issue', 'sso_issue']
         '''
-        #vocabList, featureList, labelList = self.getTrainingData(dir)
         return self.getTrainingData(dir)
-
-        trainVocabList = vocabList
-        #trainDataSet = [self.setDataToVector(numericalVec, vocabList) for numericalVec in featureList]
-        trainClasses = labelList
-
-        #return trainVocabList, trainDataSet, trainClasses
 
     def isValidName(self, name):
         if len(name) == 0 or name.startswith('.'):
@@ -58,7 +53,11 @@ class classifierModel(object):
                 ]
 
         '''
-        detailLogs, allFeatures, featureForSampleList, labelList = [], [],[],[]
+        classifierModel = self.loadClassifierModel()
+        if classifierModel:
+            return classifierModel['features'], classifierModel['samples'], classifierModel['labels']
+
+        saveTrainingData, features, samples, labels = {}, [],[],[]
 
         extractor = fileExtractor()
         subDirList = os.listdir(dir)
@@ -75,14 +74,34 @@ class classifierModel(object):
                 if self.isValidName(fileName) is False:
                     continue
 
-                print(fileName)
                 feature, _ = extractor.logFilesProcess(dir + '/' + label + '/' + fileName)
-                featureForSampleList.append(feature)
-                allFeatures.extend(feature)
-                labelList.append(label)
+                samples.append(feature)
+                features.extend(feature)
+                labels.append(label)
 
-        allFeatures = list(set(allFeatures))
-        return allFeatures, featureForSampleList, labelList
+        features = list(set(features))
+
+        saveTrainingData['features'] = features
+        saveTrainingData['samples'] = samples
+        saveTrainingData['labels'] = labels
+
+        self.saveClassifierModel(saveTrainingData)
+
+        return features, samples, labels
+
+    def saveClassifierModel(self, trainingData):
+        np.save('classifierModel.npy', trainingData)
+
+    def loadClassifierModel(self):
+        classifierModelFile = 'classifierModel.npy'
+        filePath = Path(classifierModelFile)
+        if not filePath.is_file():
+            loggerHandler.info('%s is not exist' % classifierModelFile)
+            return {}
+
+        trainingData = np.load('classifierModel.npy').item()
+        loggerHandler.info('loadClassifierModel')
+        loggerHandler.info(trainingData)
 
     def setDataToVector(self, sample, vocabList):
         ''' set the sample with numeric
