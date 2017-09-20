@@ -72,12 +72,16 @@ class fileExtractor():
                 continue
 
             featuresForOneSample, detailInfoForOneSample = {}, {}
-            loggerHandler.info('parse dir: %s' % filePathName)
+            loggerHandler.info('parse fileName: %s' % filePathName)
             features, detailInfos = self.logFilesProcess(filePathName)
+
+            if len(features) == 0 or len(detailInfos) == 0:
+                loggerHandler.info('%s is empty' % filePathName)
+                continue
 
             featuresForOneSample['features'] = features
             featuresForOneSample['detailInfo'] = detailInfos
-            featureInfos[filePathName] = featuresForOneSample
+            featureInfos[fileName] = featuresForOneSample
         return featureInfos
 
     def logFilesProcess(self, fileOrDirName):
@@ -133,9 +137,7 @@ class fileExtractor():
     def parseSingleFile(self, filenameList):
         featureStoreList, featureStoreListBak = [], []
         detailedInfoList, detailedInfoListBak = [], []
-        #filenameList = filenameList if filenameList[-1] == '/' else filenameList + '/'
         for filename in filenameList:
-            #filename = filenameList + filename
             with open(filename, 'r', encoding='ISO-8859-1') as fr:
                 for line in fr.readlines():
                     line = line.strip()

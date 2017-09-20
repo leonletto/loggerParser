@@ -7,22 +7,10 @@ sys.path.append("..")
 from logger.logger import loggerHandler
 from fileparser.fileExtractor import *
 
+CLASSIFIER_MODEL_PATH = '/tmp/classifierModel.npy'
+
 class classifierModel(object):
     def createClassifierModel(self, dir):
-        '''
-        :param
-            dir: the dir for doing feature extractor
-
-        :return:
-            trainDataSet: M*N Matrix
-                [
-                [1,0,0,0,1,1],
-                [0,1,1,0,0,1],
-                ......
-                ]
-            trainClasses: 1*K Matrix
-                ['network_connection', 'network_connection', 'no_srv_record', 'no_srv_record', 'sso_issue', 'sso_issue']
-        '''
         return self.getTrainingData(dir)
 
     def isValidName(self, name):
@@ -66,15 +54,13 @@ class classifierModel(object):
             if self.isValidName(label) is False:
                 continue
 
-            # if label != 'network_connection':
-            #     continue
-
             trainingFileSet = os.listdir(dir + '/' + label)
             for fileName in trainingFileSet:
                 if self.isValidName(fileName) is False:
                     continue
 
                 feature, _ = extractor.logFilesProcess(dir + '/' + label + '/' + fileName)
+
                 samples.append(feature)
                 features.extend(feature)
                 labels.append(label)
@@ -90,18 +76,19 @@ class classifierModel(object):
         return features, samples, labels
 
     def saveClassifierModel(self, trainingData):
-        np.save('classifierModel.npy', trainingData)
+        np.save(CLASSIFIER_MODEL_PATH, trainingData)
 
     def loadClassifierModel(self):
-        classifierModelFile = 'classifierModel.npy'
-        filePath = Path(classifierModelFile)
+        filePath = Path(CLASSIFIER_MODEL_PATH)
         if not filePath.is_file():
-            loggerHandler.info('%s is not exist' % classifierModelFile)
+            loggerHandler.info('%s is not exist' % CLASSIFIER_MODEL_PATH)
             return {}
 
-        trainingData = np.load('classifierModel.npy').item()
-        loggerHandler.info('loadClassifierModel')
+        trainingData = np.load(CLASSIFIER_MODEL_PATH).item()
+        loggerHandler.info('loading classifier model.....')
         loggerHandler.info(trainingData)
+        loggerHandler.info('classifier model loaded.....')
+        return trainingData;
 
     def setDataToVector(self, sample, vocabList):
         ''' set the sample with numeric
@@ -116,7 +103,4 @@ class classifierModel(object):
                 numericalVec[idx] = 1
 
         return numericalVec
-
-    def getClassifierModel(self):
-        pass
 
